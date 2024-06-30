@@ -2,47 +2,21 @@
 //
 
 #include <iostream>
-#include <boost/asio.hpp>
+
+#include "ServerManager.h"
 
 // using Debug = UnityEngine.Debug와 같은 개념.
-using boost::asio::ip::udp;
-
-void log_client_info(const udp::endpoint& client_endpoint) {
-    std::cout << "Client connected: " << client_endpoint.address().to_string()
-        << ":" << client_endpoint.port() << std::endl;
-}
-
-void send_packet(boost::asio::io_service& io_service, const std::string& message, const std::string& host, int port) {
-    udp::socket socket(io_service);
-    udp::endpoint remote_endpoint(boost::asio::ip::address::from_string(host), port);
-    socket.open(udp::v4());
-    socket.send_to(boost::asio::buffer(message), remote_endpoint);
-}
-
-void start_server(boost::asio::io_service& io_service, short port) {
-    udp::socket socket(io_service, udp::endpoint(udp::v4(), port));
-
-    char recv_buffer[1024];
-    udp::endpoint remote_endpoint;
-
-    while (true) {
-        std::size_t len = socket.receive_from(boost::asio::buffer(recv_buffer), remote_endpoint);
-        log_client_info(remote_endpoint);
-        std::cout << "Received: " << std::string(recv_buffer, len) << std::endl;
-    }
-}
 
 int main() {
     try {
+        ServerManager* server = new ServerManager();
         boost::asio::io_service io_service;
 
-        std::string host = "127.0.0.1"; // Unity 클라이언트가 실행되는 호스트 주소
-        int send_port = 9000; // Unity 클라이언트가 수신할 포트 번호
-        int receive_port = 9001; // C++ 서버가 수신할 포트 번호
+        //std::string host = "127.0.0.1"; // Unity 클라이언트가 실행되는 호스트 주소
+        //int send_port = 9000; // Unity 클라이언트가 수신할 포트 번호
+        //int receive_port = 9001; // C++ 서버가 수신할 포트 번호
 
-        std::thread server_thread([&io_service, receive_port]() {
-            start_server(io_service, receive_port);
-            });
+        std::thread server_thread([server]() {server->StartServer();});
 
         while (true) {
             std::cout << "Press 's' to send packet to Unity client, 'q' to quit: ";
@@ -51,7 +25,7 @@ int main() {
 
             if (key == 's') {
                 std::string message = "Hello from C++ server!";
-                send_packet(io_service, message, host, send_port);
+                server->SendPacket(message);
                 std::cout << "Packet sent to Unity client.\n";
             }
             else if (key == 'q') {
@@ -59,6 +33,10 @@ int main() {
             }
         }
 
+        /*
+            이 부분은 메인 스레드가 server_thread가 종료될 때까지 기다리게 합니다. 
+            이를 통해 server_thread가 완전히 종료되기 전에 프로그램이 종료되지 않도록 보장합니다.
+        */
         server_thread.join();
     }
     catch (std::exception& e) {
